@@ -10,10 +10,14 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // frontend deployed link or localhost
+    origin: [
+      "http://localhost:5173",        
+      "https://stalwart-sprinkles-bbf916.netlify.app" 
+    ],
     credentials: true,
   })
 );
+
 
 // Connect to MongoDB
 mongoose
