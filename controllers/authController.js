@@ -2,7 +2,6 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
 
@@ -55,52 +54,42 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    // 1️⃣ Check if user exists
+    // 1️⃣ Check user
     const user = await User.findOne({ email });
-    if (!user) {
+    if (!user)
       return res.status(404).json({ message: "Email not registered" });
-    }
 
-    // 2️⃣ Generate reset token and link
+    // 2️⃣ Create reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     user.resetToken = resetToken;
-    user.resetTokenExpire = Date.now() + 15 * 60 * 1000; // expires in 15 mins
+    user.resetTokenExpire = Date.now() + 15 * 60 * 1000;
     await user.save();
 
-    // 3️⃣ Setup Resend SMTP transporter
-    const transporter = nodemailer.createTransport({
-      host: "smtp.resend.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: "resend",
-        pass: process.env.RESEND_API_KEY, // your Resend API key
-      },
-    });
-
-    // 4️⃣ Email content
-    const mailOptions = {
-      from: "sanjanabaskar05@gmail.com", // ✅ your Gmail address
+    // 3️⃣ Send email with Resend API
+    const { data, error } = await resend.emails.send({
+      from: "onboarding@resend.dev", // ✅ use this verified default sender
       to: email,
       subject: "Reset your password",
       html: `
         <p>Hi ${user.username || "there"},</p>
-        <p>You requested to reset your password. Click the link below:</p>
+        <p>You requested to reset your password. Click below:</p>
         <a href="${resetLink}" style="color:blue;">Reset Password</a>
         <p>This link will expire in 15 minutes.</p>
       `,
-    };
+    });
 
-    // 5️⃣ Send email
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent:", info.response);
+    if (error) {
+      console.error("❌ Resend error:", error);
+      return res.status(500).json({ message: "Failed to send email" });
+    }
 
-    res.status(200).json({ message: "Password reset link sent to email" });
+    console.log("✅ Email sent via Resend:", data);
+    res.status(200).json({ message: "Password reset link sent successfully" });
   } catch (error) {
     console.error("💥 Error in forgotPassword:", error);
-    res.status(500).json({ message: "Error sending reset email" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
