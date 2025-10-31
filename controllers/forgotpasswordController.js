@@ -15,32 +15,40 @@ export const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: "Email not found" });
     }
 
-    // Generate reset token
+    // Generate and save reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
     await user.save();
 
+    // Reset link
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
     console.log("🔗 Reset link:", resetLink);
 
-    // Send email via Resend
-    const data = await resend.emails.send({
-      from: "onboarding@resend.dev", // ✅ works for testing
+    // Send email with Resend
+    const { data, error } = await resend.emails.send({
+      from: "PassApp <onboarding@resend.dev>", // or your verified domain sender
       to: email,
       subject: "Password Reset Request",
       html: `
-        <p>You requested to reset your password.</p>
-        <p>Click below to reset it:</p>
-        <a href="${resetLink}">${resetLink}</a>
-        <p>This link will expire in 15 minutes.</p>
+        <div style="font-family:sans-serif;line-height:1.6;">
+          <h2>Password Reset Request</h2>
+          <p>Click below to reset your password:</p>
+          <a href="${resetLink}" style="display:inline-block;padding:10px 20px;background:#007bff;color:#fff;text-decoration:none;border-radius:5px;">Reset Password</a>
+          <p>If you didn’t request this, ignore this email.</p>
+        </div>
       `,
     });
 
-    console.log("✅ Resend email sent:", data);
+    if (error) {
+      console.error("❌ Resend error:", error);
+      return res.status(500).json({ message: "Failed to send reset email." });
+    }
+
+    console.log("✅ Email sent via Resend:", data);
     res.json({ message: "Password reset link sent to your email." });
   } catch (error) {
     console.error("💥 Error in forgotPassword:", error);
-    res.status(500).json({ message: "Something went wrong", error: error.message });
+    res.status(500).json({ message: "Something went wrong" });
   }
 };
