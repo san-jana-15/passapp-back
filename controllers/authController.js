@@ -2,7 +2,6 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import nodemailer from "nodemailer";
 import { Resend } from "resend";
 
 dotenv.config();
@@ -62,7 +61,7 @@ export const forgotPassword = async (req, res) => {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     user.resetToken = resetToken;
-    user.resetTokenExpire = Date.now() + 15 * 60 * 1000; // 15 min
+    user.resetTokenExpire = Date.now() + 15 * 60 * 1000; // ✅ singular (same as in schema)
     await user.save();
 
     // Send email via Resend
@@ -100,19 +99,18 @@ export const resetPassword = async (req, res) => {
     console.log("Token from frontend:", token);
     const user = await User.findOne({
       resetToken: token,
-      resetTokenExpires: { $gt: Date.now() },
+      resetTokenExpire: { $gt: Date.now() }, // ✅ singular spelling here
     });
 
     if (!user) {
       return res.status(400).json({ message: "Invalid or expired token" });
     }
 
-    // hash new password
     const hashedPassword = await bcrypt.hash(password, 10);
     user.password = hashedPassword;
 
     user.resetToken = undefined;
-    user.resetTokenExpires = undefined;
+    user.resetTokenExpire = undefined;
 
     await user.save();
 
