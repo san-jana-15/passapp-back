@@ -4,7 +4,6 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import { Resend } from "resend";
 
-
 dotenv.config();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -54,65 +53,67 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    // 1️⃣ Check user
     const user = await User.findOne({ email });
     if (!user)
       return res.status(404).json({ message: "Email not registered" });
 
-    // 2️⃣ Create reset token
+    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-    user.resetToken = resetToken;
-    user.resetTokenExpire = Date.now() + 15 * 60 * 1000;
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 mins
     await user.save();
 
-    // 3️⃣ Send email with Resend API
-    const { data, error } = await resend.emails.send({
-      from: "onboarding@resend.dev", // ✅ use this verified default sender
+    // Send email via Resend
+    await resend.emails.send({
+      from: "Acme <onboarding@resend.dev>", // ✅ Verified sender
       to: email,
       subject: "Reset your password",
       html: `
         <p>Hi ${user.username || "there"},</p>
-        <p>You requested to reset your password. Click below:</p>
+        <p>You requested to reset your password. Click the link below:</p>
         <a href="${resetLink}" style="color:blue;">Reset Password</a>
         <p>This link will expire in 15 minutes.</p>
       `,
     });
 
-    if (error) {
-      console.error("❌ Resend error:", error);
-      return res.status(500).json({ message: "Failed to send email" });
-    }
+    console.log("✅ Email sent via Resend");
 
-    console.log("✅ Email sent via Resend:", data);
-    res.status(200).json({ message: "Password reset link sent successfully" });
+    res.status(200).json({ message: "Password reset link sent to email" });
   } catch (error) {
-    console.error("💥 Error in forgotPassword:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error in forgotPassword:", error);
+    res.status(500).json({ message: "Error sending reset email" });
   }
 };
 
 // ✅ RESET PASSWORD (Update in DB)
 export const resetPassword = async (req, res) => {
-  const { token } = req.params;
-  const { newPassword } = req.body;
-
   try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
     const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpire: { $gt: Date.now() },
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
     });
 
-    if (!user)
+    if (!user) {
       return res.status(400).json({ message: "Invalid or expired token" });
+    }
 
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetToken = undefined;
-    user.resetTokenExpire = undefined;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    user.password = hashedPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.status(200).json({ message: "Password reset successful! Please log in." });
+    res.json({ message: "Password reset successful!" });
   } catch (error) {
     console.error("Reset error:", error);
     res.status(500).json({ message: "Server error" });
