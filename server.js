@@ -13,6 +13,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "https://stalwart-sprinkles-bbf916.netlify.app",
+      "https://passwordapps.netlify.app/register",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
